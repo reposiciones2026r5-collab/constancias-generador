@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -7,8 +6,17 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const dbUrl = process.env.DATABASE_URL || 'file:./dev.db';
-  const adapter = new PrismaBetterSqlite3({ url: dbUrl });
-  return new PrismaClient({ adapter });
+  try {
+    if (typeof process !== 'undefined' && process.versions?.node) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
+      const adapter = new PrismaBetterSqlite3({ url: dbUrl });
+      return new PrismaClient({ adapter });
+    }
+  } catch {
+    // Edge runtime fallback
+  }
+  return new PrismaClient();
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

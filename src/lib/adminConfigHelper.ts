@@ -18,6 +18,9 @@ export const defaultConfig: AdminConfig = {
   eventDate: '22 de Septiembre de 2026',
 };
 
+// Almacenamiento en memoria para actualizaciones dinámicas en tiempo de ejecución (Edge/Cloudflare)
+let inMemoryConfig: AdminConfig | null = null;
+
 export function computeCertType(modality: string, typeNumber: number | string): string {
   const modClean = String(modality).toLowerCase().includes('conversatorio') ? 'C' : 'S';
   const numClean = Math.max(1, parseInt(String(typeNumber), 10) || 1);
@@ -25,20 +28,31 @@ export function computeCertType(modality: string, typeNumber: number | string): 
 }
 
 export function getAdminConfig(): AdminConfig {
+  if (inMemoryConfig) {
+    return inMemoryConfig;
+  }
+
   try {
+    // 1. Soporte para variables de entorno prioritarias (útil en Cloudflare Pages / Vercel Edge)
+    const envModality = process.env.ADMIN_MODALITY || process.env.NEXT_PUBLIC_ADMIN_MODALITY;
+    const envTypeNumber = process.env.ADMIN_TYPE_NUMBER || process.env.NEXT_PUBLIC_ADMIN_TYPE_NUMBER;
+    const envTopic = process.env.ADMIN_TOPIC || process.env.NEXT_PUBLIC_ADMIN_TOPIC;
+    const envStateCode = process.env.ADMIN_STATE_CODE || process.env.NEXT_PUBLIC_ADMIN_STATE_CODE;
+    const envEventDate = process.env.ADMIN_EVENT_DATE || process.env.NEXT_PUBLIC_ADMIN_EVENT_DATE;
+
     const parsed = adminConfigData || defaultConfig;
     
+    const rawModality = envModality || parsed.modality;
     const modality: 'Seminario' | 'Conversatorio' = 
-      String(parsed.modality).toLowerCase().includes('conversatorio') ? 'Conversatorio' : 'Seminario';
-    const typeNumber = Math.max(1, parseInt(String(parsed.typeNumber), 10) || 1);
+      String(rawModality).toLowerCase().includes('conversatorio') ? 'Conversatorio' : 'Seminario';
+      
+    const rawTypeNumber = envTypeNumber !== undefined ? envTypeNumber : parsed.typeNumber;
+    const typeNumber = Math.max(1, parseInt(String(rawTypeNumber), 10) || 1);
     const certType = computeCertType(modality, typeNumber);
     
-    const topic = parsed.topic && String(parsed.topic).trim() !== ''
-      ? String(parsed.topic).trim()
-      : defaultConfig.topic;
-
-    const stateCode = (parsed.stateCode || defaultConfig.stateCode).toUpperCase().trim();
-    const eventDate = parsed.eventDate || defaultConfig.eventDate;
+    const topic = envTopic || (parsed.topic && String(parsed.topic).trim() !== '' ? String(parsed.topic).trim() : defaultConfig.topic);
+    const stateCode = (envStateCode || parsed.stateCode || defaultConfig.stateCode).toUpperCase().trim();
+    const eventDate = envEventDate || parsed.eventDate || defaultConfig.eventDate;
 
     return {
       modality,
@@ -49,7 +63,7 @@ export function getAdminConfig(): AdminConfig {
       eventDate,
     };
   } catch (error) {
-    console.error('Error al leer adminConfig:', error);
+    console.error('Error al obtener la configuración de administración:', error);
   }
   return defaultConfig;
 }
@@ -80,22 +94,6 @@ export function saveAdminConfig(newConfig: Partial<AdminConfig>): AdminConfig {
     eventDate: newConfig.eventDate !== undefined ? String(newConfig.eventDate).trim() : current.eventDate,
   };
 
-  try {
-    if (typeof process !== 'undefined' && process.versions?.node) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const fs = require('fs');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const path = require('path');
-      const configFilePath = path.join(process.cwd(), 'src', 'config', 'adminConfig.json');
-      const dir = path.dirname(configFilePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(configFilePath, JSON.stringify(updated, null, 2), 'utf-8');
-    }
-  } catch (err) {
-    console.warn('Could not persist adminConfig to disk:', err);
-  }
-
+  inMemoryConfig = updated;
   return updated;
 }
