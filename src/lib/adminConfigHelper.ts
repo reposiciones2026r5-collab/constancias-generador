@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import adminConfigData from '@/config/adminConfig.json';
 
 export interface AdminConfig {
   modality: 'Seminario' | 'Conversatorio';
@@ -9,8 +8,6 @@ export interface AdminConfig {
   stateCode: string;
   eventDate: string;
 }
-
-const configFilePath = path.join(process.cwd(), 'src', 'config', 'adminConfig.json');
 
 export const defaultConfig: AdminConfig = {
   modality: 'Seminario',
@@ -29,33 +26,30 @@ export function computeCertType(modality: string, typeNumber: number | string): 
 
 export function getAdminConfig(): AdminConfig {
   try {
-    if (fs.existsSync(configFilePath)) {
-      const data = fs.readFileSync(configFilePath, 'utf-8');
-      const parsed = JSON.parse(data);
-      
-      const modality: 'Seminario' | 'Conversatorio' = 
-        String(parsed.modality).toLowerCase().includes('conversatorio') ? 'Conversatorio' : 'Seminario';
-      const typeNumber = Math.max(1, parseInt(String(parsed.typeNumber), 10) || 1);
-      const certType = computeCertType(modality, typeNumber);
-      
-      const topic = parsed.topic && String(parsed.topic).trim() !== ''
-        ? String(parsed.topic).trim()
-        : defaultConfig.topic;
+    const parsed = adminConfigData || defaultConfig;
+    
+    const modality: 'Seminario' | 'Conversatorio' = 
+      String(parsed.modality).toLowerCase().includes('conversatorio') ? 'Conversatorio' : 'Seminario';
+    const typeNumber = Math.max(1, parseInt(String(parsed.typeNumber), 10) || 1);
+    const certType = computeCertType(modality, typeNumber);
+    
+    const topic = parsed.topic && String(parsed.topic).trim() !== ''
+      ? String(parsed.topic).trim()
+      : defaultConfig.topic;
 
-      const stateCode = (parsed.stateCode || defaultConfig.stateCode).toUpperCase().trim();
-      const eventDate = parsed.eventDate || defaultConfig.eventDate;
+    const stateCode = (parsed.stateCode || defaultConfig.stateCode).toUpperCase().trim();
+    const eventDate = parsed.eventDate || defaultConfig.eventDate;
 
-      return {
-        modality,
-        typeNumber,
-        topic,
-        certType,
-        stateCode,
-        eventDate,
-      };
-    }
+    return {
+      modality,
+      typeNumber,
+      topic,
+      certType,
+      stateCode,
+      eventDate,
+    };
   } catch (error) {
-    console.error('Error al leer adminConfig.json:', error);
+    console.error('Error al leer adminConfig:', error);
   }
   return defaultConfig;
 }
@@ -86,11 +80,22 @@ export function saveAdminConfig(newConfig: Partial<AdminConfig>): AdminConfig {
     eventDate: newConfig.eventDate !== undefined ? String(newConfig.eventDate).trim() : current.eventDate,
   };
 
-  const dir = path.dirname(configFilePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  try {
+    if (typeof process !== 'undefined' && process.versions?.node) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require('fs');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const path = require('path');
+      const configFilePath = path.join(process.cwd(), 'src', 'config', 'adminConfig.json');
+      const dir = path.dirname(configFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(configFilePath, JSON.stringify(updated, null, 2), 'utf-8');
+    }
+  } catch (err) {
+    console.warn('Could not persist adminConfig to disk:', err);
   }
 
-  fs.writeFileSync(configFilePath, JSON.stringify(updated, null, 2), 'utf-8');
   return updated;
 }

@@ -1,9 +1,9 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import QRCode from 'qrcode';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import fs from 'fs';
-import path from 'path';
 import { getAdminConfig } from '@/lib/adminConfigHelper';
 import { MEXICAN_STATES } from '@/config/states';
 
@@ -91,21 +91,41 @@ export async function POST(request: Request) {
     const page = pdfDoc.addPage([612, 792]); // Tamaño Carta (8.5 x 11 pulgadas)
     const { width, height } = page.getSize();
 
-    // Cargar la imagen plantilla local (.jpg o .png)
-    const jpgPath = path.join(process.cwd(), 'PLANTILLA_CONSTANCIA_Titulares copy 2.jpg');
-    const pngPath = path.join(process.cwd(), 'PLANTILLA_CONSTANCIA_Titulares copy 2.png');
-
-    let bgBytes: Buffer;
+    // Cargar la imagen plantilla local (.jpg o .png) de forma compatible con Edge / Node
+    let bgBytes: ArrayBuffer | Uint8Array;
     let isJpg = false;
 
-    if (fs.existsSync(jpgPath)) {
-      bgBytes = fs.readFileSync(jpgPath);
-      isJpg = true;
-    } else if (fs.existsSync(pngPath)) {
-      bgBytes = fs.readFileSync(pngPath);
-      isJpg = false;
-    } else {
-      throw new Error('No se encontró la imagen plantilla local PLANTILLA_CONSTANCIA_Titulares copy 2');
+    try {
+      const origin = url.origin;
+      const imgRes = await fetch(`${origin}/PLANTILLA_CONSTANCIA_Titulares%20copy%202.png`);
+      if (imgRes.ok) {
+        bgBytes = await imgRes.arrayBuffer();
+        isJpg = false;
+      } else {
+        const jpgRes = await fetch(`${origin}/PLANTILLA_CONSTANCIA_Titulares%20copy%202.jpg`);
+        bgBytes = await jpgRes.arrayBuffer();
+        isJpg = true;
+      }
+    } catch {
+      if (typeof process !== 'undefined' && process.versions?.node) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('fs');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const path = require('path');
+        const pngPath = path.join(process.cwd(), 'public', 'PLANTILLA_CONSTANCIA_Titulares copy 2.png');
+        const jpgPath = path.join(process.cwd(), 'public', 'PLANTILLA_CONSTANCIA_Titulares copy 2.jpg');
+        if (fs.existsSync(pngPath)) {
+          bgBytes = fs.readFileSync(pngPath);
+          isJpg = false;
+        } else if (fs.existsSync(jpgPath)) {
+          bgBytes = fs.readFileSync(jpgPath);
+          isJpg = true;
+        } else {
+          throw new Error('No se encontró la imagen plantilla local PLANTILLA_CONSTANCIA_Titulares copy 2');
+        }
+      } else {
+        throw new Error('No se pudo cargar la plantilla de imagen');
+      }
     }
 
     const bgImg = isJpg

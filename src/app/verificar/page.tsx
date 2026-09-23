@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = 'edge';
+
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
