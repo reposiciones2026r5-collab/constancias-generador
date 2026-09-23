@@ -1,0 +1,24 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Certificate {
+  id         Int      @id @default(autoincrement())
+  fullName   String
+  topic      String
+  date       String
+  certType   String
+  stateCode  String
+  age        String?
+  occupation String?
+  curp       String?
+  email      String?
+  folio      String   @unique
+  createdAt  DateTime @default(now())
+}
